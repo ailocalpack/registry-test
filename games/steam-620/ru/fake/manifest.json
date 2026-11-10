@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "fake",
+  "game": "steam:620",
+  "language": "ru",
+  "title": "Fake agent translation",
+  "authors": [
+    {
+      "github": "maximiliysiss",
+      "name": "Maxim Zimin"
+    }
+  ],
+  "revision": 1,
+  "revisions": [
+    {
+      "revision": 1,
+      "date": "2026-11-10T20:57:11Z",
+      "by": "maximiliysiss"
+    }
+  ],
+  "status": "alpha",
+  "agent": {
+    "id": "fake",
+    "version": "replay"
+  },
+  "builds": [
+    {
+      "buildId": "1000",
+      "files": {
+        "data/Actors.json": "cfb334c9746e0621d2c3a84518eef57c3db07dd872ca4fb747cc1041458c1589",
+        "data/Armors.json": "5477f0f9e61d60d055226fe05af4d75acc9076c2d61d6acb27821bebbefc29b6",
+        "data/Classes.json": "5bdcb201d0b9dc7b0094bcbd6a322d8a811df7292cf7d52ed55f4395cfd0c552",
+        "data/CommonEvents.json": "1f20468d0e46028eab4e17688771b28c10d8c22c8ec9ce0f7934023bc72a2852",
+        "data/Enemies.json": "0f27919be58ee954c8970b5f0113a4ec07b57d03676c77b10f1dfc96cf3ed53e",
+        "data/Items.json": "0a6f99f55e0ad7a9d8c6661cd374393b3dd852593ee198bcd9ff525d62478995",
+        "data/Map001.json": "b780e629a69b7277e2bd6a54dbccdc012ddfc2bbc873d24d73c2669bf20fba9e",
+        "data/Skills.json": "223b48ba82cdba62cb77d4d61870f77266c37a806f0d6643aa41b39bab9819b0",
+        "data/States.json": "4a381b5be4c67cc72727065a9f5fa9cc302cb96fd0202dc2f3472645d24252f5",
+        "data/System.json": "b51d4e338edd3ef50d9bdd3d28998ab2bb8be58ca7e493fdf5542c0096187881",
+        "data/Troops.json": "4b2be897b00191e4d79d3868fd2edb785202a9e4ad3158c3b9421ca10746ac6d",
+        "data/Weapons.json": "6a3bfca0676e4664366ff62168ed244e25b489aaaa2ffeecddc83e7937d1b13a"
+      }
+    }
+  ],
+  "recipe": {
+    "tool": "rpgmaker",
+    "version": "1.0.0"
+  },
+  "strings": {
+    "path": "strings/strings.json.gz",
+    "sha256": "031e9ec0aa5798e3f54f21677e30529b4bab3895c062498b0949f2065e8b7352",
+    "size": 1909
+  },
+  "coverage": {
+    "translated": 64,
+    "total": 64
+  },
+  "license": "CC-BY-SA-4.0",
+  "created": "2026-11-10T20:57:11Z",
+  "updated": "2026-11-10T20:57:11Z"
+}
