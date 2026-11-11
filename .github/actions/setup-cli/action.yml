@@ -1,0 +1,53 @@
+name: Set up the ailocalpack CLI
+description: >
+  Builds the ailocalpack CLI from ailocalpack/ailocalpack at the commit pinned in ci/ailocalpack-ref
+  (a self-contained linux-x64 single file, cached per commit) and puts it on PATH.
+  Task 71 replaces the build with a download of the released binary (pinned version + hash).
+outputs:
+  ref:
+    description: The commit the CLI was built from.
+    value: ${{ steps.ref.outputs.ref }}
+runs:
+  using: composite
+  steps:
+    - id: ref
+      shell: bash
+      run: |
+        ref="$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/ci/ailocalpack-ref")"
+        if [[ ! "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "::error file=ci/ailocalpack-ref::must hold one full 40-character commit SHA"
+          exit 1
+        fi
+        echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+    - id: cache
+      uses: actions/cache@v5
+      with:
+        path: ${{ runner.temp }}/ailocalpack-cli
+        key: ailocalpack-cli-${{ runner.os }}-${{ steps.ref.outputs.ref }}
+
+    - if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/checkout@v5
+      with:
+        repository: ailocalpack/ailocalpack
+        ref: ${{ steps.ref.outputs.ref }}
+        path: _cli-src
+        persist-credentials: false
+
+    - if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/setup-dotnet@v5
+      with:
+        global-json-file: _cli-src/global.json
+
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: _cli-src
+      run: |
+        dotnet publish src/AiLocalPack.Cli -c Release -r linux-x64 -o "$RUNNER_TEMP/ailocalpack-cli" -p:DebugType=none
+        # Schemas travel with the CLI so the registry copy can be compared with the ones the CLI was built with.
+        cp -r schemas "$RUNNER_TEMP/ailocalpack-cli/schemas"
+
+    - shell: bash
+      run: |
+        echo "$RUNNER_TEMP/ailocalpack-cli" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/ailocalpack-cli/ailocalpack" --help > /dev/null

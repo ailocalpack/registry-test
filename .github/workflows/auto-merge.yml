@@ -1,0 +1,129 @@
+# Merges a contributor's pack pull request once Validate passed on it. Runs from master's copy of this file
+# with a write token, so it trusts nothing from the pull request: it reads the changed files from the API,
+# checks out the head commit as data (no script from it runs; only the CLI built from the pinned source and
+# master's scripts), and repeats the scope, alpha and validation checks itself before merging.
+name: Auto-merge
+
+on:
+  workflow_run:
+    workflows: [Validate]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  merge:
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Find the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          # workflow_run.pull_requests is empty for pull requests from forks, so look the head commit up.
+          number="$(gh pr list --repo "$REPO" --state open --base main --limit 200 --json number,headRefOid \
+            --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number" | head -n 1)"
+          if [[ -z "$number" ]]; then
+            echo "No open pull request has head $HEAD_SHA (closed, or new commits pushed since)."
+            exit 0
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          # The fork the pull request comes from: where a patch pack's archive waits (its "patches" release).
+          gh pr view "$number" --repo "$REPO" --json headRepositoryOwner,headRepository \
+            --jq '"head_repo=" + .headRepositoryOwner.login + "/" + .headRepository.name' >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        if: steps.pr.outputs.number
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Scope
+        if: steps.pr.outputs.number
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          mkdir -p _pr
+          git fetch --no-tags --depth=1 origin "+refs/pull/$NUMBER/head:refs/remotes/pr/head"
+          if [[ "$(git rev-parse refs/remotes/pr/head)" != "$HEAD_SHA" ]]; then
+            echo "The pull request moved on since Validate ran; its next run decides."
+            echo "kind=stale" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The pull request's games/ tree as plain files (links stay links, and pack validate refuses them).
+          if git cat-file -e "$HEAD_SHA:games" 2>/dev/null; then
+            git archive "$HEAD_SHA" games | tar -x -C _pr
+          fi
+          # master's policy lists (never the pull request's): pack validate checks dependencies against
+          # _pr/policy/dependencies.json, and without it would refuse every pack that needs one.
+          [[ -d policy ]] && cp -r policy _pr/policy
+          # Removed files are listed too; renames list the new name, and the old one as previous_filename.
+          gh api --paginate "repos/$REPO/pulls/$NUMBER/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > _changed.txt
+          scripts/pr-scope.sh _pr < _changed.txt | tee -a "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/setup-cli
+        if: steps.scope.outputs.kind == 'pack'
+
+      - name: Check the pack again
+        if: steps.scope.outputs.kind == 'pack'
+        env:
+          PACK: ${{ steps.scope.outputs.pack }}
+        run: |
+          scripts/check-alpha.sh "_pr/$PACK"
+          # _pr/ is a registry tree, so the layout check sees games/<game>/<language>/<pack-id>.
+          ailocalpack pack validate "_pr/$PACK"
+
+      - name: Check the patch archive
+        if: steps.scope.outputs.kind == 'pack'
+        id: patch
+        env:
+          PACK: ${{ steps.scope.outputs.pack }}
+          REPO: ${{ github.repository }}
+          HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
+        run: scripts/check-patch.sh "_pr/$PACK" "$REPO" "$HEAD_REPO" "$RUNNER_TEMP/patch" | tee -a "$GITHUB_OUTPUT"
+
+      # Before the merge, so the published index never names an asset that isn't there. A name already taken
+      # (an earlier run of this workflow) must hold the same bytes; a different file is never replaced.
+      - name: Copy the patch archive to the registry
+        if: steps.patch.outputs.archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ARCHIVE: ${{ steps.patch.outputs.archive }}
+          NAME: ${{ steps.patch.outputs.name }}
+        run: |
+          if ! gh api "repos/$REPO/releases/tags/patches" > /dev/null 2>&1; then
+            gh release create patches --repo "$REPO" --title "Patch archives" --latest=false \
+              --notes "Binary patch archives of packs (the manifests' patch.url). Added by auto-merge; never replaced."
+          fi
+          digest="$(gh api "repos/$REPO/releases/tags/patches" --jq ".assets[] | select(.name == env.NAME) | .digest // \"present\"")"
+          if [[ -z "$digest" ]]; then
+            gh release upload patches "$ARCHIVE" --repo "$REPO"
+          elif [[ "$digest" != "sha256:$(sha256sum "$ARCHIVE" | cut -d' ' -f1)" ]]; then
+            echo "::error::$NAME is already in the patches release with other content; a new revision gets a new name."
+            exit 1
+          fi
+
+      - name: Merge
+        if: steps.scope.outputs.kind == 'pack'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          gh pr merge "$NUMBER" --repo "$REPO" --squash --match-head-commit "$HEAD_SHA"
+          # A push made with GITHUB_TOKEN starts no workflow, so start the index publish explicitly.
+          gh workflow run publish.yml --repo "$REPO" --ref main

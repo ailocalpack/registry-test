@@ -1,0 +1,9 @@
+# Pack folders (games/) have no owner on purpose: a pack pull request that passes CI merges by itself.
+# Everything that decides what CI accepts or what the app trusts needs a maintainer's review.
+/.github/   @ailocalpack/maintainers
+/ci/        @ailocalpack/maintainers
+/scripts/   @ailocalpack/maintainers
+/schemas/   @ailocalpack/maintainers
+/policy/    @ailocalpack/maintainers
+/README.md  @ailocalpack/maintainers
+/LICENSE    @ailocalpack/maintainers

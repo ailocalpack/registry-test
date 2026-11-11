@@ -1,0 +1,53 @@
+# Builds index.json from master and publishes it, with the pack files it points to, to GitHub Pages:
+# https://ailocalpack.github.io/registry/index.json
+name: Publish index
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-cli
+
+      - name: Build the site
+        run: |
+          mkdir -p _site
+          ratings=()
+          [[ -f ratings.json ]] && ratings=(--ratings ratings.json)   # written by task 64's collector
+          ailocalpack index build . --out _site/index.json "${ratings[@]}" --github
+          # Pack files resolve relative to index.json, so the games/ tree is published next to it.
+          [[ -d games ]] && cp -r games _site/games
+          cp -r schemas _site/schemas
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}index.json
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

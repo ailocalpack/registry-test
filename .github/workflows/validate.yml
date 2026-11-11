@@ -1,0 +1,75 @@
+# Required status check on master. Runs the pull request's own copy of this file, so it is advice for the
+# contributor; auto-merge.yml repeats every check from master's copy before it merges anything.
+name: Validate
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # The test merge of the pull request into master: HEAD^1 is master, HEAD^2 the pull request.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-cli
+
+      - name: Scope
+        id: scope
+        run: |
+          git -c core.quotePath=true diff --name-only --no-renames HEAD^1 HEAD | scripts/pr-scope.sh . | tee -a "$GITHUB_OUTPUT"
+
+      - name: Only maintainers change more than one pack folder
+        if: steps.scope.outputs.kind != 'pack'
+        env:
+          ASSOCIATION: ${{ github.event.pull_request.author_association }}
+          REASON: ${{ steps.scope.outputs.reason }}
+        run: |
+          case "$ASSOCIATION" in
+            OWNER|MEMBER|COLLABORATOR) echo "Maintenance pull request ($REASON): needs a maintainer's review, not auto-merged." ;;
+            *) echo "::error title=One pack per pull request::This pull request can't be accepted: $REASON. Put one pack (games/<game>/<language>/<pack-id>/) in a pull request of its own."
+               exit 1 ;;
+          esac
+
+      # Folder names come from the pull request, so they reach the shell through env, never through ${{ }}.
+      - name: New packs and revisions are alpha
+        if: steps.scope.outputs.kind == 'pack'
+        env:
+          PACK: ${{ steps.scope.outputs.pack }}
+        run: scripts/check-alpha.sh "$PACK"
+
+      - name: Validate packs
+        if: steps.scope.outputs.packs != ''
+        env:
+          PACKS: ${{ steps.scope.outputs.packs }}
+        run: |
+          read -ra packs <<< "$PACKS"
+          ailocalpack pack validate "${packs[@]}" --github
+
+      # A binary patch pack's archive travels as an asset of the author's fork ("patches" release); auto-merge
+      # copies it here. Names reach the shell through env only.
+      - name: Patch archive in the author's fork
+        if: steps.scope.outputs.kind == 'pack'
+        env:
+          PACK: ${{ steps.scope.outputs.pack }}
+          REGISTRY: ${{ github.repository }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: scripts/check-patch.sh "$PACK" "$REGISTRY" "$HEAD_REPO" "$RUNNER_TEMP/patch"
+
+      - name: Schemas match the CLI
+        run: diff -r "$RUNNER_TEMP/ailocalpack-cli/schemas" schemas
+
+      - name: Index builds
+        run: ailocalpack index build . --out "$RUNNER_TEMP/index.json" --github
