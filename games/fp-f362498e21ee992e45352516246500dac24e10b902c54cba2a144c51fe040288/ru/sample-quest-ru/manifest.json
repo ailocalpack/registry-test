@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "id": "sample-quest-ru",
+  "game": "fp:f362498e21ee992e45352516246500dac24e10b902c54cba2a144c51fe040288",
+  "language": "ru",
+  "title": "Sample Quest: образцовый перевод",
+  "authors": [
+    {
+      "github": "ailocalpack",
+      "name": "ailocalpack maintainers"
+    }
+  ],
+  "revision": 1,
+  "revisions": [
+    {
+      "revision": 1,
+      "date": "2026-11-05T12:00:00Z",
+      "by": "ailocalpack",
+      "notes": "Sample pack for the synthetic fixture game tests/fixtures/games/sample-quest of ailocalpack/ailocalpack."
+    }
+  ],
+  "status": "alpha",
+  "builds": [
+    {
+      "files": {
+        "data/Map001.json": "9d597eff8184514083fe724623c8d09cc08caa0dcce5178b9581cecd7e61cf96",
+        "data/System.json": "16630e8c150320ca7f723b23c6f152878ca92b489410a4a8136ef116c344cb8b"
+      }
+    }
+  ],
+  "recipe": {
+    "tool": "rpgmaker",
+    "version": "1.0.0"
+  },
+  "strings": {
+    "path": "strings/strings.json.gz",
+    "sha256": "c61c44cd97944c4d78168b07fd4dabb0b0b4510d2ead399e6c51d3bdefe5325a",
+    "size": 430
+  },
+  "coverage": {
+    "translated": 9,
+    "total": 28
+  },
+  "license": "CC-BY-SA-4.0",
+  "created": "2026-11-05T12:00:00Z",
+  "updated": "2026-11-05T12:00:00Z"
+}

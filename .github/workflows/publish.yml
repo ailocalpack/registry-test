@@ -1,14 +1,21 @@
 # Builds index.json from master and publishes it, with the pack files it points to, to GitHub Pages:
 # https://ailocalpack.github.io/registry/index.json
+# Every run first collects the packs' ratings from their Discussions (category "Packs"), opening one for a pack
+# that has none, so likes, works / doesn't work counts and the verified status (3 confirmations of the current
+# revision, see the app's docs/packs-and-registry.md) are as fresh as the last run; the schedule keeps them so.
+# Nothing is committed: a failed collection fails the run and Pages keeps the previous index.
 name: Publish index
 
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '17 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
+  discussions: write
   pages: write
   id-token: write
 
@@ -28,12 +35,17 @@ jobs:
 
       - uses: ./.github/actions/setup-cli
 
+      - name: Collect ratings
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: ailocalpack ratings collect . --out "$RUNNER_TEMP/ratings.json" --repo "$REPO" --create-missing --github
+
       - name: Build the site
         run: |
           mkdir -p _site
-          ratings=()
-          [[ -f ratings.json ]] && ratings=(--ratings ratings.json)   # written by task 64's collector
-          ailocalpack index build . --out _site/index.json "${ratings[@]}" --github
+          # policy/verified.json (maintainers) grants or revokes verified for one pack revision.
+          ailocalpack index build . --out _site/index.json --ratings "$RUNNER_TEMP/ratings.json" --github
           # Pack files resolve relative to index.json, so the games/ tree is published next to it.
           [[ -d games ]] && cp -r games _site/games
           cp -r schemas _site/schemas
