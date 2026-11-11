@@ -1,4 +1,6 @@
 {
   "schemaVersion": 1,
-  "packs": []
+  "packs": [
+    {"pack": "steam:620/ru/fake", "revision": 1, "status": "verified", "note": "task 64 live check of the maintainer override"}
+  ]
 }
