@@ -41,11 +41,19 @@ jobs:
           REPO: ${{ github.repository }}
         run: ailocalpack ratings collect . --out "$RUNNER_TEMP/ratings.json" --repo "$REPO" --create-missing --github
 
+      # Translation requests (Discussions in the "Requests" category): open ones go into index.json; done ones
+      # (a pack exists now) and newer duplicates are closed.
+      - name: Collect requests
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: ailocalpack requests collect . --out "$RUNNER_TEMP/requests.json" --repo "$REPO" --close --github
+
       - name: Build the site
         run: |
           mkdir -p _site
           # policy/verified.json (maintainers) grants or revokes verified for one pack revision.
-          ailocalpack index build . --out _site/index.json --ratings "$RUNNER_TEMP/ratings.json" --github
+          ailocalpack index build . --out _site/index.json --ratings "$RUNNER_TEMP/ratings.json" --requests "$RUNNER_TEMP/requests.json" --github
           # Pack files resolve relative to index.json, so the games/ tree is published next to it.
           [[ -d games ]] && cp -r games _site/games
           cp -r schemas _site/schemas

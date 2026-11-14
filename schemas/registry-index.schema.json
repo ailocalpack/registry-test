@@ -18,9 +18,38 @@
       "description": "The registry's dependency whitelist (policy/dependencies.json, schema dependency-whitelist.schema.json): executables packs may require, with their official release files and hashes, ordered by id.",
       "type": "array",
       "items": { "$ref": "#/$defs/dependency" }
+    },
+    "antiCheats": {
+      "description": "Anti-cheat detection rules of the registry's policy/anti-cheat.json (schema anti-cheat.schema.json), in its order: the app puts them on top of its bundled list (same id = replaced, new ones added).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "markers"],
+        "properties": {
+          "id": { "$ref": "#/$defs/antiCheatId" },
+          "name": { "type": "string", "pattern": "\\S" },
+          "markers": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^([^/\\\\*?]+/)*[^/\\\\]+/?$",
+              "allOf": [
+                { "pattern": "\\S" },
+                { "not": { "pattern": "(^|/)\\.\\.?(/|$)" } }
+              ]
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {
+    "antiCheatId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "not": { "const": "none" }
+    },
     "dependency": {
       "type": "object",
       "required": [
@@ -145,11 +174,40 @@
       "properties": {
         "optOut": { "description": "The publisher asked not to distribute fan translations: install and generation are blocked.", "type": "boolean" },
         "antiCheatAllowed": { "description": "The game has an anti-cheat but officially allows mods: not blocked.", "type": "boolean" },
+        "antiCheat": { "description": "The anti-cheat the registry's policy lists for the game by ID (one that leaves no files in the game folder): blocked unless antiCheatAllowed.", "$ref": "#/$defs/antiCheatId" },
         "packs": {
           "description": "Language tag → packs into that language.",
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/language" },
           "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/pack" } }
+        },
+        "requests": {
+          "description": "Language tag → the open translation request into that language (requests collect, task 74); never for a language that has packs.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/language" },
+          "additionalProperties": { "$ref": "#/$defs/request" }
+        }
+      }
+    },
+    "request": {
+      "description": "An open translation request: collected from its GitHub Discussion in the registry's Requests category.",
+      "type": "object",
+      "required": ["votes", "discussion", "opened"],
+      "properties": {
+        "votes": { "description": "Accounts that gave the request's Discussions a 👍 (bots left out).", "type": "integer", "minimum": 1 },
+        "discussion": { "description": "The request's Discussion (the oldest open one).", "type": "string", "pattern": "^https://" },
+        "opened": { "description": "When the Discussion was opened.", "$ref": "#/$defs/date" },
+        "claim": {
+          "description": "The translator working on it: their newest claim comment, edited at most 14 days ago.",
+          "type": "object",
+          "required": ["by", "state", "percent", "updated"],
+          "properties": {
+            "by": { "description": "The translator's GitHub login.", "type": "string", "maxLength": 39, "pattern": "^[A-Za-z0-9](-?[A-Za-z0-9]){0,38}$" },
+            "state": { "enum": ["working", "built", "published"] },
+            "stage": { "description": "The generation stage while working.", "enum": ["setup", "extract", "study", "glossary", "translate", "build", "done"] },
+            "percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "updated": { "description": "The claim comment's last edit: the last news.", "$ref": "#/$defs/date" }
+          }
         }
       }
     },
